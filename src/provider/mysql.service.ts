@@ -23,7 +23,11 @@ export class MysqlService {
     return this.pool.getConnection();
   }
 
-  releaseConnection(connection: PoolConnection) {
+  /**
+   * 为统一连接管理，确保只使用该方法释放连接
+   * @param connection
+   */
+  release(connection: PoolConnection) {
     this.pool.releaseConnection(connection);
   }
 }
