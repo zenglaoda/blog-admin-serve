@@ -4,7 +4,7 @@ import { MysqlService } from '@/provider/mysql.service';
 import { CreateDto, UpdateCto } from './share/dto';
 
 import type { RowDataPacket } from 'mysql2';
-import type { Category } from './share/model';
+import { Category } from './share/model';
 
 interface CategoryTree extends Category {
   children: CategoryTree[];
@@ -22,28 +22,43 @@ export class CategoryService {
     const isRoot = (category: Category) => category.pid === 0;
     const isLast = (category: Category) => category.next_id === 0;
     const categories = [...this.categoryMap.values()] as CategoryTree[];
+    const rootCategories: CategoryTree[] = [];
 
     for (let i = 0; i < categories.length; i++) {
       const category = categories[i];
-      if (!isRoot(category)) {
+      if (isRoot(category)) {
+        rootCategories.push(category);
+      } else {
         const parent = this.categoryMap.get(category.pid) as CategoryTree;
         parent.children = parent.children || [];
         parent.children.push(category);
       }
     }
-    const rootCategories = categories.filter((category) => isRoot(category));
 
-    const recurse = (categories: CategoryTree[]) => {
-      const children: CategoryTree[] = [];
-      let lastChild = categories.find((child) => isLast(child));
-      while (lastChild) {
-        lastChild.children = recurse(lastChild.children);
-        children.push(lastChild);
-        lastChild = this.categoryMap.get(lastChild.pid) as CategoryTree;
+    const combine = (children: CategoryTree[]) => {
+      const visited = new Set<CategoryTree>();
+      let linkList: CategoryTree[] = [];
+      for (let i = 0; i < children.length; i++) {
+        let category = children[i];
+        const list: CategoryTree[] = [];
+        while (category) {
+          if (visited.has(category)) {
+            linkList = list.concat(linkList);
+            break;
+          }
+          list.push(category);
+          visited.add(category);
+          category = this.categoryMap.get(category.next_id) as CategoryTree;
+        }
+        if (chains.length === children.length) break;
       }
-      return children.reverse();
+      return linkList;
     };
-    this.categoryTree = recurse(rootCategories);
+    for (let i = 0; i < categories.length; i++) {
+      const category = categories[i];
+      category.children = combine(category.children);
+    }
+    this.categoryTree = rootCategories;
   }
 
   async pullList() {
