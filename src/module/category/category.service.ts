@@ -6,17 +6,46 @@ import { CreateDto, UpdateCto } from './share/dto';
 import type { RowDataPacket } from 'mysql2';
 import type { Category } from './share/model';
 
-function transformId(id?: string | number) {
-  return id === undefined || id === null ? 0 : id;
+interface CategoryTree extends Category {
+  children: CategoryTree[];
 }
 
 @Injectable()
 export class CategoryService {
-  private categories: Category[] = [];
-  private categorySet: Map<number, Category> = new Map();
+  private categoryTree: CategoryTree[];
+  private categoryMap: Map<number, Category> = new Map();
   private isStale = true;
 
   constructor(private readonly mysqlService: MysqlService) {}
+
+  async combineCategoryTree() {
+    const isRoot = (category: Category) => category.pid === 0;
+    const isLast = (category: Category) => category.next_id === 0;
+    const categories = [...this.categoryMap.values()] as CategoryTree[];
+
+    for (let i = 0; i < categories.length; i++) {
+      const category = categories[i];
+      if (!isRoot(category)) {
+        const parent = this.categoryMap.get(category.pid) as CategoryTree;
+        parent.children = parent.children || [];
+        parent.children.push(category);
+      }
+    }
+    const parents = categories.filter((category) => isRoot(category));
+
+    const recurse = (category: CategoryTree) => {
+      const children: CategoryTree[] = [];
+      let child = category.children[0]
+      let lastChild: CategoryTree;
+      let index = 0;
+      const map = new Map();
+      while (index < category.children.length) {
+        const child = category.children[index];
+        map.set(child.id, []);
+
+      }
+    }
+  }
 
   async pullList() {
     if (this.isStale) {
@@ -25,21 +54,23 @@ export class CategoryService {
         SELECT id, pid, next_id, title, description FROM category;
       `);
       this.mysqlService.release(connection);
-      this.categories = results as Category[];
-      this.categories.forEach((item) => {
-        this.categorySet.set(item.id, item);
+      const categories = results as Category[];
+      categories.forEach((item) => {
+        this.categoryMap.set(item.id, item);
       });
+      this.combineCategoryTree();
       this.isStale = false;
     }
   }
 
+
   async getList() {
     await this.pullList();
-    return this.categories;
+    return this.categoryTree;
   }
 
   private isValidId(id: number) {
-    return id === 0 || this.categorySet.has(id);
+    return id === 0 || this.categoryMap.has(id);
   }
 
   /**
@@ -78,8 +109,8 @@ export class CategoryService {
         (?, ?, ?, ?);
       `,
       [
-        transformId(createDto.pid),
-        transformId(createDto.nextId),
+        createDto.pid || 0,
+        createDto.nextId || 0,
         createDto.title,
         createDto.description,
       ],
