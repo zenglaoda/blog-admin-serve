@@ -31,20 +31,19 @@ export class CategoryService {
         parent.children.push(category);
       }
     }
-    const parents = categories.filter((category) => isRoot(category));
+    const rootCategories = categories.filter((category) => isRoot(category));
 
-    const recurse = (category: CategoryTree) => {
+    const recurse = (categories: CategoryTree[]) => {
       const children: CategoryTree[] = [];
-      let child = category.children[0]
-      let lastChild: CategoryTree;
-      let index = 0;
-      const map = new Map();
-      while (index < category.children.length) {
-        const child = category.children[index];
-        map.set(child.id, []);
-
+      let lastChild = categories.find((child) => isLast(child));
+      while (lastChild) {
+        lastChild.children = recurse(lastChild.children);
+        children.push(lastChild);
+        lastChild = this.categoryMap.get(lastChild.pid) as CategoryTree;
       }
-    }
+      return children.reverse();
+    };
+    this.categoryTree = recurse(rootCategories);
   }
 
   async pullList() {
