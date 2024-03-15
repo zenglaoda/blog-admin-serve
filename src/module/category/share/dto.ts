@@ -20,14 +20,6 @@ export class UpdateCto {
   @Min(1)
   id: number;
 
-  @Min(0)
-  @IsOptional()
-  pid: number;
-
-  @Min(0)
-  @IsOptional()
-  nextId: number;
-
   @Length(1, 40)
   title: string;
 

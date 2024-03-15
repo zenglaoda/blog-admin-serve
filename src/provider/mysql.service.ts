@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { createPool } from 'mysql2/promise';
 
-import type { Pool, PoolConnection } from 'mysql2/promise';
+import type { Pool, PoolConnection, Connection } from 'mysql2/promise';
 
 @Injectable()
 export class MysqlService {
@@ -20,7 +20,7 @@ export class MysqlService {
     this.createTables();
   }
 
-  getConnection() {
+  getConnection(): Promise<Connection> {
     return this.pool.getConnection();
   }
 
@@ -28,8 +28,8 @@ export class MysqlService {
    * 为统一连接管理，确保只使用该方法释放连接
    * @param connection
    */
-  release(connection: PoolConnection) {
-    this.pool.releaseConnection(connection);
+  release(connection: Connection) {
+    this.pool.releaseConnection(connection as PoolConnection);
   }
 
   async createTables() {
@@ -38,7 +38,7 @@ export class MysqlService {
     this.release(connection);
   }
 
-  async createCategoryTable(connection: PoolConnection) {
+  async createCategoryTable(connection: Connection) {
     return connection.query(`
       CREATE TABLE IF NOT EXISTS category (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -47,7 +47,7 @@ export class MysqlService {
         title VARCHAR(40) NOT NULL,
         description VARCHAR(200) NOT NULL,
         ctime TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        mtime TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        mtime TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
   }
