@@ -1,24 +1,40 @@
+import { Injectable } from '@nestjs/common';
+import { Observer } from '@/utils/observer';
+
 import type { Category } from './share/model';
+import type { CategoryService } from './category.service';
 
 interface CategoryTree extends Category {
   children: CategoryTree[];
 }
 
-export class CategoryStore {
-  constructor() {}
+@Injectable()
+export class CategoryStore extends Observer<string> {
+  private categoryTree: CategoryTree[] = [];
+  private categoryMap: Map<number, CategoryTree> = new Map();
+  private isStale = true;
 
-  isRootCategory(category: Category) {
-    return category.pid === 0;
+  constructor(private readonly categoryService: CategoryService) {
+    super();
   }
 
-  private async combineCategoryTree() {
-    const isRoot = (category: Category) => category.pid === 0;
-    const categories = [...this.categoryMap.values()];
+  private async pullList() {
+    if (this.isStale) {
+      const categories = await this.categoryService.pullList();
+      categories.forEach((e) => {
+        this.categoryMap.set(e.id, e as CategoryTree);
+      });
+      this.categoryTree = this.combineCategoryTree(categories);
+      this.isStale = false;
+    }
+  }
+
+  private combineCategoryTree(categories: Category[]) {
     const rootCategories: CategoryTree[] = [];
 
     for (let i = 0; i < categories.length; i++) {
-      const category = categories[i];
-      if (isRoot(category)) {
+      const category = categories[i] as CategoryTree;
+      if (this.isRootCategory(category)) {
         rootCategories.push(category);
       } else {
         const parent = this.categoryMap.get(category.pid);
@@ -48,10 +64,18 @@ export class CategoryStore {
     };
 
     for (let i = 0; i < categories.length; i++) {
-      const category = categories[i];
+      const category = categories[i] as CategoryTree;
       category.children = combine(category.children);
     }
-    this.categoryTree = rootCategories;
+    return rootCategories;
+  }
+
+  markStale() {
+    this.isStale = true;
+  }
+
+  isRootCategory(category: Category) {
+    return category.pid === 0;
   }
 
   /**
@@ -60,7 +84,7 @@ export class CategoryStore {
    * @param pid 父分类id
    * @returns
    */
-  private getPrevCategory(id: number, pid?: number): CategoryTree | undefined {
+  getPrevCategory(id: number, pid?: number): CategoryTree | undefined {
     let categories: CategoryTree[];
     const category = this.categoryMap.get(id);
 
@@ -77,5 +101,15 @@ export class CategoryStore {
       categories = this.categoryMap.get(category.pid).children;
     }
     return categories.find((e) => e.next_id === id);
+  }
+
+  async getCategoryMap() {
+    await this.pullList();
+    return this.categoryMap as unknown as Map<number, CategoryTree>;
+  }
+
+  async getCategoryTree() {
+    await this.pullList();
+    return this.categoryTree as unknown as CategoryTree[];
   }
 }

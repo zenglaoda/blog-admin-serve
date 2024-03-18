@@ -4,128 +4,32 @@ import { MysqlService } from '@/provider/mysql.service';
 import { CreateDto, MoveDto, UpdateCto } from './share/dto';
 
 import type { RowDataPacket, Connection } from 'mysql2/promise';
-import { Category } from './share/model';
-
-interface CategoryTree extends Category {
-  children: CategoryTree[];
-}
-
-type RemoveInterceptor = (id: number) => Promise<any>;
+import type { Category } from './share/model';
+import type { CategoryStore } from './category.store';
 
 @Injectable()
 export class CategoryService {
-  private categoryTree: CategoryTree[] = [];
-  private categoryMap: Map<number, CategoryTree> = new Map();
-  private removeInterceptors: RemoveInterceptor[];
-  private isStale = true;
+  constructor(
+    private readonly mysqlService: MysqlService,
+    private readonly categoryStore: CategoryStore,
+  ) {}
 
-  constructor(private readonly mysqlService: MysqlService) {}
-
-  // is root
-  private isRootCategory(category: Category) {
-    return category.pid === 0;
-  }
-
-  /**
-   * 获取指定分类的上一个兄弟分类
-   * @param id 分类id
-   * @param pid 父分类id
-   * @returns
-   */
-  private getPrevCategory(id: number, pid?: number): CategoryTree | undefined {
-    let categories: CategoryTree[];
-    const category = this.categoryMap.get(id);
-
-    if (this.categoryMap.size === 0) {
-      return;
-    } else if (id === 0) {
-      if (typeof pid !== 'number') {
-        throw new Error('if id is 0, the pid is required');
-      }
-      categories = this.categoryMap.get(pid).children;
-    } else if (this.isRootCategory(category)) {
-      categories = this.categoryTree;
-    } else {
-      categories = this.categoryMap.get(category.pid).children;
+  async pullList() {
+    let categories: Category[] = [];
+    const connection = await this.mysqlService.getConnection();
+    try {
+      const [results] = await connection.query<RowDataPacket[]>(`
+        SELECT id, pid, next_id, title, description FROM category;
+      `);
+      categories = results as Category[];
+    } finally {
+      this.mysqlService.release(connection);
     }
-    return categories.find((e) => e.next_id === id);
+    return categories;
   }
 
-  private markStale() {
-    this.isStale = true;
-  }
-
-  private async combineCategoryTree() {
-    const isRoot = (category: Category) => category.pid === 0;
-    const categories = [...this.categoryMap.values()];
-    const rootCategories: CategoryTree[] = [];
-
-    for (let i = 0; i < categories.length; i++) {
-      const category = categories[i];
-      if (isRoot(category)) {
-        rootCategories.push(category);
-      } else {
-        const parent = this.categoryMap.get(category.pid);
-        parent.children = parent.children || [];
-        parent.children.push(category);
-      }
-    }
-
-    const combine = (children: CategoryTree[]) => {
-      const visited = new Set<CategoryTree>();
-      let linkList: CategoryTree[] = [];
-      for (let i = 0; i < children.length; i++) {
-        let category = children[i];
-        const list: CategoryTree[] = [];
-        while (category) {
-          if (visited.has(category)) {
-            linkList = list.concat(linkList);
-            break;
-          }
-          list.push(category);
-          visited.add(category);
-          category = this.categoryMap.get(category.next_id);
-        }
-        if (list.length === children.length) break;
-      }
-      return linkList;
-    };
-
-    for (let i = 0; i < categories.length; i++) {
-      const category = categories[i];
-      category.children = combine(category.children);
-    }
-    this.categoryTree = rootCategories;
-  }
-
-  private async syncCategories(connection?: Connection) {
-    if (this.isStale) {
-      let shouldRelease = false;
-      if (!connection) {
-        connection = await this.mysqlService.getConnection();
-        shouldRelease = true;
-      }
-      try {
-        const [results] = await connection.query<RowDataPacket[]>(`
-          SELECT id, pid, next_id, title, description FROM category;
-        `);
-        const categories = results as CategoryTree[];
-        categories.forEach((e) => {
-          this.categoryMap.set(e.id, e);
-        });
-        this.combineCategoryTree();
-        this.isStale = false;
-      } finally {
-        if (shouldRelease) {
-          this.mysqlService.release(connection);
-        }
-      }
-    }
-  }
-
-  async getList() {
-    await this.syncCategories();
-    return this.categoryTree;
+  getList() {
+    return this.categoryStore.getCategoryTree();
   }
 
   /**
@@ -140,12 +44,12 @@ export class CategoryService {
     let insertId: number;
     const connection = await this.mysqlService.getConnection();
     try {
-      await this.syncCategories(connection);
+      const categoryMap = await this.categoryStore.getCategoryMap();
 
       createDto.pid = createDto.pid || 0;
       createDto.nextId = createDto.nextId || 0;
 
-      const isValidId = (id: number) => id === 0 || this.categoryMap.has(id);
+      const isValidId = (id: number) => id === 0 || categoryMap.has(id);
 
       if (!isValidId(createDto.pid)) {
         throw new Error('不存在的 pid');
@@ -153,7 +57,7 @@ export class CategoryService {
       if (!isValidId(createDto.nextId)) {
         throw new Error('不存在的 nextId');
       }
-      const nextCategory = this.categoryMap.get(createDto.nextId);
+      const nextCategory = categoryMap.get(createDto.nextId);
       if (createDto.nextId !== 0 && nextCategory.pid !== createDto.pid) {
         throw new Error('netId 与 pid 不匹配');
       }
@@ -174,7 +78,7 @@ export class CategoryService {
           ],
         );
         insertId = results.insertId;
-        const prevCategory = this.getPrevCategory(
+        const prevCategory = this.categoryStore.getPrevCategory(
           createDto.nextId,
           createDto.pid,
         );
@@ -185,7 +89,7 @@ export class CategoryService {
           );
         }
         await connection.commit();
-        this.markStale();
+        this.categoryStore.markStale();
       } catch (err) {
         await connection.rollback();
         throw err;
@@ -196,20 +100,12 @@ export class CategoryService {
     return insertId;
   }
 
-  async addRemoveInterceptor(fn: RemoveInterceptor) {
-    this.removeInterceptors.push(fn);
-  }
-
-  async delRemoveInterceptor(fn: RemoveInterceptor) {
-    this.removeInterceptors = this.removeInterceptors.filter((f) => f !== fn);
-  }
-
   async remove(id: number) {
-    await Promise.all(this.removeInterceptors.map((fn) => fn(id)));
+    // TODO: notify
     const connection = await this.mysqlService.getConnection();
     try {
-      await this.syncCategories(connection);
-      const category = this.categoryMap.get(id);
+      const categoryMap = await this.categoryStore.getCategoryMap();
+      const category = categoryMap.get(id);
       if (category.children.length > 0) {
         throw new Error('删除失败，当前分类下存在子分类');
       }
@@ -220,8 +116,8 @@ export class CategoryService {
           `DELETE FROM category WHERE id = ?`,
           [id],
         );
-        const prevCategory = this.getPrevCategory(id);
-        const category = this.categoryMap.get(id);
+        const prevCategory = this.categoryStore.getPrevCategory(id);
+        const category = categoryMap.get(id);
         if (prevCategory) {
           await connection.query<RowDataPacket[]>(
             `UPDATE category SET next_id = ? WHERE id = ?`,
@@ -229,7 +125,7 @@ export class CategoryService {
           );
         }
         await connection.commit();
-        this.markStale();
+        this.categoryStore.markStale();
       } catch (err) {
         await connection.rollback();
         throw err;
@@ -250,7 +146,7 @@ export class CategoryService {
           id = ${escape(updateDto.id)};
         `,
       );
-      this.markStale();
+      this.categoryStore.markStale();
     } finally {
       this.mysqlService.release(connection);
     }
@@ -261,12 +157,11 @@ export class CategoryService {
     moveDto.nextId = moveDto.nextId || 0;
 
     const connection = await this.mysqlService.getConnection();
-    await this.syncCategories(connection);
     await connection.beginTransaction();
     try {
       await this.mv(connection, moveDto);
       await connection.commit();
-      this.markStale();
+      this.categoryStore.markStale();
     } catch (err) {
       await connection.rollback();
       throw err;
@@ -283,8 +178,9 @@ export class CategoryService {
    * @param moveDto
    */
   private async mv(connection: Connection, moveDto: MoveDto) {
-    const category = this.categoryMap.get(moveDto.id);
-    let prevCategory = this.getPrevCategory(moveDto.id);
+    const categoryMap = await this.categoryStore.getCategoryMap();
+    const category = categoryMap.get(moveDto.id);
+    let prevCategory = this.categoryStore.getPrevCategory(moveDto.id);
     if (prevCategory) {
       await connection.query(`UPDATE category SET next_id = ? WHERE id = ?`, [
         category.next_id,
@@ -292,7 +188,7 @@ export class CategoryService {
       ]);
     }
 
-    prevCategory = this.getPrevCategory(moveDto.nextId);
+    prevCategory = this.categoryStore.getPrevCategory(moveDto.nextId);
     if (prevCategory) {
       await connection.query(`UPDATE category SET next_id = ? WHERE id = ?`, [
         moveDto.id,
@@ -307,8 +203,8 @@ export class CategoryService {
   }
 
   async retrieve(id: number) {
-    await this.syncCategories();
-    const category = this.categoryMap.get(id);
+    const categoryMap = await this.categoryStore.getCategoryMap();
+    const category = categoryMap.get(id);
     if (!category) return null;
     return {
       id: category.id,

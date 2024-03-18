@@ -1,45 +1,43 @@
-type Key = string | symbol;
-type Subscriber = (...args: any[]) => Promise<any>;
+// eslint-disable-next-line @typescript-eslint/ban-types
+export class Observer<Key = any, Subscriber extends Function = () => void> {
+  protected builtInKey: Key = {};
+  protected subjects: Map<Key, Subscriber[]> = new Map();
 
-export class Observer {
-  private builtInKey: string | symbol = Symbol('built-in Key');
-  private subjects: Map<Key, Subscriber[]> = new Map();
-
-  constructor(defKey: string | symbol) {
-    this.builtInKey = defKey;
+  constructor(defaultKey?: Key) {
+    if (defaultKey !== undefined) {
+      this.builtInKey = defaultKey;
+    }
   }
 
-  subscribe(callback: Subscriber, eventName: Key) {
+  subscribe(callback: Subscriber, eventName?: Key) {
     const key = eventName || this.builtInKey;
     const subscribers = this.subjects.get(key) || [];
     subscribers.push(callback);
     this.subjects.set(key, subscribers);
+    return () => {
+      this.unsubscribe(callback, key);
+    };
   }
 
-  /**
-   * @description 取消订阅
-   * @param {function} callback
-   * @param {string} [eventName]
-   */
-  unsubscribe(callback, eventName) {
+  unsubscribe(callback: Subscriber, eventName?: Key) {
     const key = eventName || this.builtInKey;
-    const subscribers = (this.subscribers[key] = this.subscribers[key] || []);
-
-    subscribers.filter((ele) => ele !== callback);
+    let subscribers = this.subjects.get(key) || [];
+    subscribers = subscribers.filter((fn) => fn !== callback);
+    this.subjects.set(key, subscribers);
   }
 
-  /**
-   * @description 通知某种类型的事件
-   * @param {any} data
-   * @param {string} [eventName]
-   */
-  notify(data, eventName) {
-    const key = eventName || this.builtInKey;
-    const subscribers = (this.subscribers[key] = this.subscribers[key] || []);
+  // notify(eventName: Key, ...args: any[]) {
+  //   if (eventName === null || eventName === undefined) {
 
-    for (let i = 0; i < subscribers.length; i++) {
-      const callback = subscribers[i];
-      callback(data);
-    }
-  }
+  //   } else {
+
+  //   }
+  //   const key = eventName || this.builtInKey;
+  //   const subscribers = this.subjects.get(key) || [];
+
+  //   for (let i = 0; i < subscribers.length; i++) {
+  //     const callback = subscribers[i];
+  //     callback(...args);
+  //   }
+  // }
 }
