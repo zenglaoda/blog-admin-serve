@@ -3,12 +3,15 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
+  Put,
   Param,
   UsePipes,
   ValidationPipe,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { CategoryService } from './category.service';
-import { CreateDto } from './share/dto';
+import { CreateDto, UpdateCto } from './share/dto';
 
 @Controller('/category')
 export class CategoryController {
@@ -20,9 +23,24 @@ export class CategoryController {
     return this.categoryService.create(createDto);
   }
 
-  @Get(':id')
+  @Delete(':id')
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.categoryService.remove(id);
+  }
+
+  @Put()
   @UsePipes(new ValidationPipe({ transform: true }))
-  retrieve(@Param('id') id: number) {
-    return 'retrieve' + id;
+  update(@Body() updateCto: UpdateCto) {
+    return this.categoryService.update(updateCto);
+  }
+
+  @Get(':id')
+  retrieve(@Param('id', ParseIntPipe) id: number) {
+    return this.categoryService.retrieve(id);
+  }
+
+  @Get('list')
+  getList() {
+    return this.categoryService.getList() as unknown;
   }
 }

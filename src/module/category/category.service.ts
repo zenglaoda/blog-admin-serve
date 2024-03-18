@@ -14,21 +14,36 @@ type RemoveInterceptor = (id: number) => Promise<any>;
 
 @Injectable()
 export class CategoryService {
-  private categoryTree: CategoryTree[];
+  private categoryTree: CategoryTree[] = [];
   private categoryMap: Map<number, CategoryTree> = new Map();
-  private isStale = true;
   private removeInterceptors: RemoveInterceptor[];
+  private isStale = true;
 
   constructor(private readonly mysqlService: MysqlService) {}
 
-  private isValidId(id: number) {
-    return id === 0 || this.categoryMap.has(id);
+  // is root
+  private isRootCategory(category: Category) {
+    return category.pid === 0;
   }
 
-  private getPrevCategory(id: number) {
-    const category = this.categoryMap.get(id);
+  /**
+   * 获取指定分类的上一个兄弟分类
+   * @param id 分类id
+   * @param pid 父分类id
+   * @returns
+   */
+  private getPrevCategory(id: number, pid?: number): CategoryTree | undefined {
     let categories: CategoryTree[];
-    if (category.pid === 0) {
+    const category = this.categoryMap.get(id);
+
+    if (this.categoryMap.size === 0) {
+      return;
+    } else if (id === 0) {
+      if (typeof pid !== 'number') {
+        throw new Error('if id is 0, the pid is required');
+      }
+      categories = this.categoryMap.get(pid).children;
+    } else if (this.isRootCategory(category)) {
       categories = this.categoryTree;
     } else {
       categories = this.categoryMap.get(category.pid).children;
@@ -83,27 +98,33 @@ export class CategoryService {
     this.categoryTree = rootCategories;
   }
 
-  private async syncCategories(connection: Connection) {
+  private async syncCategories(connection?: Connection) {
     if (this.isStale) {
-      const [results] = await connection.query<RowDataPacket[]>(`
-        SELECT id, pid, next_id, title, description FROM category;
-      `);
-      const categories = results as CategoryTree[];
-      categories.forEach((e) => {
-        this.categoryMap.set(e.id, e);
-      });
-      this.combineCategoryTree();
-      this.isStale = false;
+      let shouldRelease = false;
+      if (!connection) {
+        connection = await this.mysqlService.getConnection();
+        shouldRelease = true;
+      }
+      try {
+        const [results] = await connection.query<RowDataPacket[]>(`
+          SELECT id, pid, next_id, title, description FROM category;
+        `);
+        const categories = results as CategoryTree[];
+        categories.forEach((e) => {
+          this.categoryMap.set(e.id, e);
+        });
+        this.combineCategoryTree();
+        this.isStale = false;
+      } finally {
+        if (shouldRelease) {
+          this.mysqlService.release(connection);
+        }
+      }
     }
   }
 
   async getList() {
-    const connection = await this.mysqlService.getConnection();
-    try {
-      await this.syncCategories(connection);
-    } finally {
-      this.mysqlService.release(connection);
-    }
+    await this.syncCategories();
     return this.categoryTree;
   }
 
@@ -124,15 +145,17 @@ export class CategoryService {
       createDto.pid = createDto.pid || 0;
       createDto.nextId = createDto.nextId || 0;
 
-      if (!this.isValidId(createDto.pid)) {
+      const isValidId = (id: number) => id === 0 || this.categoryMap.has(id);
+
+      if (!isValidId(createDto.pid)) {
         throw new Error('不存在的 pid');
       }
-      if (!this.isValidId(createDto.nextId)) {
+      if (!isValidId(createDto.nextId)) {
         throw new Error('不存在的 nextId');
       }
       const nextCategory = this.categoryMap.get(createDto.nextId);
-      if (nextCategory.pid !== createDto.pid) {
-        throw new Error('nextId 与 pid 不匹配');
+      if (createDto.nextId !== 0 && nextCategory.pid !== createDto.pid) {
+        throw new Error('netId 与 pid 不匹配');
       }
 
       await connection.beginTransaction();
@@ -151,7 +174,10 @@ export class CategoryService {
           ],
         );
         insertId = results.insertId;
-        const prevCategory = this.getPrevCategory(createDto.nextId);
+        const prevCategory = this.getPrevCategory(
+          createDto.nextId,
+          createDto.pid,
+        );
         if (prevCategory) {
           await connection.query(
             `UPDATE category SET next_id = ? WHERE id = ?`,
@@ -231,7 +257,11 @@ export class CategoryService {
   }
 
   async move(moveDto: MoveDto) {
+    moveDto.pid = moveDto.pid || 0;
+    moveDto.nextId = moveDto.nextId || 0;
+
     const connection = await this.mysqlService.getConnection();
+    await this.syncCategories(connection);
     await connection.beginTransaction();
     try {
       await this.mv(connection, moveDto);
@@ -253,7 +283,6 @@ export class CategoryService {
    * @param moveDto
    */
   private async mv(connection: Connection, moveDto: MoveDto) {
-    await this.syncCategories(connection);
     const category = this.categoryMap.get(moveDto.id);
     let prevCategory = this.getPrevCategory(moveDto.id);
     if (prevCategory) {
@@ -277,5 +306,16 @@ export class CategoryService {
     );
   }
 
-  async retrieve() {}
+  async retrieve(id: number) {
+    await this.syncCategories();
+    const category = this.categoryMap.get(id);
+    if (!category) return null;
+    return {
+      id: category.id,
+      pid: category.pid,
+      next_id: category.next_id,
+      title: category.title,
+      description: category.description,
+    };
+  }
 }
