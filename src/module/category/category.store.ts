@@ -1,44 +1,61 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { Observer } from '@/utils/observer';
 
-import type { Category } from './share/model';
-import type { CategoryService } from './category.service';
+import { Category } from './share/model';
+import { CategoryService } from './category.service';
 
-interface CategoryTree extends Category {
+export interface CategoryTree extends Category {
   children: CategoryTree[];
 }
 
 @Injectable()
 export class CategoryStore extends Observer<string> {
-  private categoryTree: CategoryTree[] = [];
-  private categoryMap: Map<number, CategoryTree> = new Map();
+  categoryTree: CategoryTree[] = [];
+  categoryMap: Map<number, CategoryTree> = new Map();
   private isStale = true;
 
-  constructor(private readonly categoryService: CategoryService) {
+  constructor(
+    @Inject(forwardRef(() => CategoryService))
+    private readonly categoryService: CategoryService,
+  ) {
     super();
+  }
+
+  /**
+   * @override
+   * @param key
+   * @param args
+   */
+  async notify(key: string, ...args: any[]): Promise<any> {
+    const subscribers = this.subjects.get(key) || [];
+    for (let i = 0; i < subscribers.length; i++) {
+      const callback = subscribers[i];
+      await callback(...args);
+    }
   }
 
   private async pullList() {
     if (this.isStale) {
-      const categories = await this.categoryService.pullList();
+      const categories =
+        (await this.categoryService.pullList()) as CategoryTree[];
       categories.forEach((e) => {
-        this.categoryMap.set(e.id, e as CategoryTree);
+        e.children = [];
+        this.categoryMap.set(e.id, e);
       });
       this.categoryTree = this.combineCategoryTree(categories);
       this.isStale = false;
     }
   }
 
-  private combineCategoryTree(categories: Category[]) {
+  private combineCategoryTree(categories: CategoryTree[]) {
     const rootCategories: CategoryTree[] = [];
 
     for (let i = 0; i < categories.length; i++) {
-      const category = categories[i] as CategoryTree;
+      const category = categories[i];
       if (this.isRootCategory(category)) {
         rootCategories.push(category);
       } else {
         const parent = this.categoryMap.get(category.pid);
-        parent.children = parent.children || [];
         parent.children.push(category);
       }
     }
@@ -70,12 +87,12 @@ export class CategoryStore extends Observer<string> {
     return rootCategories;
   }
 
-  markStale() {
-    this.isStale = true;
-  }
-
   isRootCategory(category: Category) {
     return category.pid === 0;
+  }
+
+  markStale() {
+    this.isStale = true;
   }
 
   /**
@@ -94,7 +111,11 @@ export class CategoryStore extends Observer<string> {
       if (typeof pid !== 'number') {
         throw new Error('if id is 0, the pid is required');
       }
-      categories = this.categoryMap.get(pid).children;
+      if (pid === 0) {
+        categories = this.categoryTree;
+      } else {
+        categories = this.categoryMap.get(pid).children;
+      }
     } else if (this.isRootCategory(category)) {
       categories = this.categoryTree;
     } else {
@@ -105,11 +126,20 @@ export class CategoryStore extends Observer<string> {
 
   async getCategoryMap() {
     await this.pullList();
-    return this.categoryMap as unknown as Map<number, CategoryTree>;
+    return this.categoryMap;
   }
 
   async getCategoryTree() {
     await this.pullList();
-    return this.categoryTree as unknown as CategoryTree[];
+    return this.categoryTree;
   }
+}
+
+export function syncCatStore(target: any, key: string, descriptor: any) {
+  const original = descriptor.value;
+  descriptor.value = async function (...args) {
+    await this.categoryStore.pullList();
+    const result = original.call(this, ...args);
+    return result;
+  };
 }

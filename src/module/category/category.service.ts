@@ -1,17 +1,19 @@
 import { ResultSetHeader, escape } from 'mysql2';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { MysqlService } from '@/provider/mysql.service';
 import { CreateDto, MoveDto, UpdateCto } from './share/dto';
+import { syncCatStore } from './category.store';
 
-import type { RowDataPacket, Connection } from 'mysql2/promise';
-import type { Category } from './share/model';
-import type { CategoryStore } from './category.store';
+import { RowDataPacket, Connection } from 'mysql2/promise';
+import { Category } from './share/model';
+import { CategoryStore } from './category.store';
 
 @Injectable()
 export class CategoryService {
   constructor(
-    private readonly mysqlService: MysqlService,
+    @Inject(forwardRef(() => CategoryStore))
     private readonly categoryStore: CategoryStore,
+    private readonly mysqlService: MysqlService,
   ) {}
 
   async pullList() {
@@ -100,11 +102,11 @@ export class CategoryService {
     return insertId;
   }
 
+  @syncCatStore
   async remove(id: number) {
-    // TODO: notify
+    const categoryMap = this.categoryStore.categoryMap;
     const connection = await this.mysqlService.getConnection();
     try {
-      const categoryMap = await this.categoryStore.getCategoryMap();
       const category = categoryMap.get(id);
       if (category.children.length > 0) {
         throw new Error('删除失败，当前分类下存在子分类');

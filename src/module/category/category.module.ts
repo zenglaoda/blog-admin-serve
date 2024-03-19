@@ -5,8 +5,8 @@ import { MysqlService } from '@/provider/mysql.service';
 import { CategoryStore } from './category.store';
 
 @Module({
-  controllers: [CategoryController],
   providers: [MysqlService, CategoryService, CategoryStore],
+  controllers: [CategoryController],
   exports: [CategoryStore],
 })
 export class CategoryModule {}
