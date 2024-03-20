@@ -23,23 +23,23 @@ export class CategoryController {
     return this.categoryService.create(createDto);
   }
 
-  // @Delete(':id')
-  // remove(@Param('id', ParseIntPipe) id: number) {
-  //   return this.categoryService.remove(id);
-  // }
+  @Delete(':id')
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.categoryService.remove(id);
+  }
 
-  // @Put()
-  // @UsePipes(new ValidationPipe({ transform: true }))
-  // update(@Body() updateCto: UpdateCto) {
-  //   return this.categoryService.update(updateCto);
-  // }
+  @Put()
+  @UsePipes(new ValidationPipe({ transform: true }))
+  update(@Body() updateCto: UpdateCto) {
+    return this.categoryService.update(updateCto);
+  }
 
-  // @Get(':id')
-  // retrieve(@Param('id', ParseIntPipe) id: number) {
-  //   return this.categoryService.retrieve(id);
-  // }
+  @Get(':id')
+  retrieve(@Param('id', ParseIntPipe) id: number) {
+    return this.categoryService.retrieve(id);
+  }
 
-  @Get('/list')
+  @Get()
   getList() {
     return this.categoryService.getList();
   }

@@ -1,8 +1,9 @@
-import { Injectable, Inject, forwardRef } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Observer } from '@/utils/observer';
 
 import { Category } from './share/model';
-import { CategoryService } from './category.service';
+import { MysqlService } from '@/provider/mysql.service';
+import type { RowDataPacket } from 'mysql2/promise';
 
 export interface CategoryTree extends Category {
   children: CategoryTree[];
@@ -14,10 +15,7 @@ export class CategoryStore extends Observer<string> {
   categoryMap: Map<number, CategoryTree> = new Map();
   private isStale = true;
 
-  constructor(
-    @Inject(forwardRef(() => CategoryService))
-    private readonly categoryService: CategoryService,
-  ) {
+  constructor(private readonly mysqlService: MysqlService) {
     super();
   }
 
@@ -34,10 +32,25 @@ export class CategoryStore extends Observer<string> {
     }
   }
 
+  markStale() {
+    this.isStale = true;
+  }
+
+  /**
+   * 拉取最新分类数据
+   */
   private async pullList() {
     if (this.isStale) {
-      const categories =
-        (await this.categoryService.pullList()) as CategoryTree[];
+      let categories: CategoryTree[] = [];
+      const connection = await this.mysqlService.getConnection();
+      try {
+        const [results] = await connection.query<RowDataPacket[]>(`
+          SELECT id, pid, next_id, title, description FROM category;
+        `);
+        categories = results as CategoryTree[];
+      } finally {
+        this.mysqlService.release(connection);
+      }
       categories.forEach((e) => {
         e.children = [];
         this.categoryMap.set(e.id, e);
@@ -63,25 +76,24 @@ export class CategoryStore extends Observer<string> {
     const combine = (children: CategoryTree[]) => {
       const visited = new Set<CategoryTree>();
       let linkList: CategoryTree[] = [];
+
       for (let i = 0; i < children.length; i++) {
         let category = children[i];
         const list: CategoryTree[] = [];
         while (category) {
-          if (visited.has(category)) {
-            linkList = list.concat(linkList);
-            break;
-          }
+          if (visited.has(category)) break;
           list.push(category);
           visited.add(category);
           category = this.categoryMap.get(category.next_id);
         }
-        if (list.length === children.length) break;
+        linkList = list.concat(linkList);
+        if (linkList.length === children.length) break;
       }
       return linkList;
     };
 
     for (let i = 0; i < categories.length; i++) {
-      const category = categories[i] as CategoryTree;
+      const category = categories[i];
       category.children = combine(category.children);
     }
     return rootCategories;
@@ -89,10 +101,6 @@ export class CategoryStore extends Observer<string> {
 
   isRootCategory(category: Category) {
     return category.pid === 0;
-  }
-
-  markStale() {
-    this.isStale = true;
   }
 
   /**
@@ -135,11 +143,19 @@ export class CategoryStore extends Observer<string> {
   }
 }
 
-export function syncCatStore(target: any, key: string, descriptor: any) {
-  const original = descriptor.value;
-  descriptor.value = async function (...args) {
-    await this.categoryStore.pullList();
-    const result = original.call(this, ...args);
-    return result;
+/**
+ * 获取最新分类数据装饰器，依赖实例的 categoryStore 属性
+ * @param target
+ * @param key
+ * @param descriptor
+ */
+export function syncCatStore() {
+  return function (target: any, key: string, descriptor: any) {
+    const original = descriptor.value;
+    descriptor.value = async function (...args) {
+      await this.categoryStore.pullList();
+      const result = original.call(this, ...args);
+      return result;
+    };
   };
 }

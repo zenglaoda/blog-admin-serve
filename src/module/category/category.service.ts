@@ -1,44 +1,29 @@
 import { ResultSetHeader, escape } from 'mysql2';
-import { Injectable, Inject, forwardRef } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { MysqlService } from '@/provider/mysql.service';
 import { CreateDto, MoveDto, UpdateCto } from './share/dto';
 import { syncCatStore } from './category.store';
 
 import { RowDataPacket, Connection } from 'mysql2/promise';
-import { Category } from './share/model';
 import { CategoryStore } from './category.store';
 
 @Injectable()
 export class CategoryService {
   constructor(
-    @Inject(forwardRef(() => CategoryStore))
     private readonly categoryStore: CategoryStore,
     private readonly mysqlService: MysqlService,
   ) {}
 
-  async pullList() {
-    let categories: Category[] = [];
-    const connection = await this.mysqlService.getConnection();
-    try {
-      const [results] = await connection.query<RowDataPacket[]>(`
-        SELECT id, pid, next_id, title, description FROM category;
-      `);
-      categories = results as Category[];
-    } finally {
-      this.mysqlService.release(connection);
-    }
-    return categories;
-  }
-
+  @syncCatStore()
   getList() {
-    return this.categoryStore.getCategoryTree();
+    return this.categoryStore.categoryTree;
   }
 
   /**
-   * TODO: 确保 pid,next_id 存在且合理
-   * 1. pid 需要存在
-   * 2. next_id 需要存在
-   * 创建分类
+   * 创建分类，需要确保如下条件
+   * 1. pid 存在或者等于 0
+   * 2. next_id 存在或者等于 0，next_id 如果不等于 0, 则 next_id 所对分类的pid应与创建的分类pid 相同
+   * 3. next_id 等于 0 时，需要将兄弟分类的 next_id 进行修改
    * @param createDto
    * @returns 自动增长的 id
    */
@@ -102,7 +87,7 @@ export class CategoryService {
     return insertId;
   }
 
-  @syncCatStore
+  @syncCatStore()
   async remove(id: number) {
     const categoryMap = this.categoryStore.categoryMap;
     const connection = await this.mysqlService.getConnection();
