@@ -1,7 +1,7 @@
 import { ResultSetHeader, escape } from 'mysql2';
 import { Injectable } from '@nestjs/common';
 import { MysqlService } from '@/provider/mysql.service';
-import { CreateDto, MoveDto, UpdateCto } from './share/dto';
+import { CreateDto, MoveDto, UpdateCto } from './category.dto';
 import { syncCatStore } from './category.store';
 
 import { RowDataPacket, Connection } from 'mysql2/promise';
@@ -89,6 +89,7 @@ export class CategoryService {
 
   @syncCatStore()
   async remove(id: number) {
+    await this.categoryStore.notify('remove', id);
     const categoryMap = this.categoryStore.categoryMap;
     const connection = await this.mysqlService.getConnection();
     try {
@@ -128,7 +129,7 @@ export class CategoryService {
       await connection.query<ResultSetHeader>(
         `UPDATE category SET
           title = ${escape(updateDto.title)},
-          description = ${escape(updateDto.description)},
+          description = ${escape(updateDto.description)}
         WHERE
           id = ${escape(updateDto.id)};
         `,

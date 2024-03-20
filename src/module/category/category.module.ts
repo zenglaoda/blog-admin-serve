@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { CategoryController } from '@/module/category/category.controller';
-import { CategoryService } from './category.service';
 import { MysqlService } from '@/provider/mysql.service';
+import { CategoryService } from './category.service';
 import { CategoryStore } from './category.store';
 
 @Module({
-  providers: [MysqlService, CategoryService, CategoryStore],
+  providers: [MysqlService, CategoryStore, CategoryService],
   controllers: [CategoryController],
   exports: [CategoryStore],
 })

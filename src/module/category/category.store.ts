@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { Observer } from '@/utils/observer';
 
-import { Category } from './share/model';
+import { Category } from './category.type';
 import { MysqlService } from '@/provider/mysql.service';
-import type { RowDataPacket } from 'mysql2/promise';
+import { RowDataPacket } from 'mysql2/promise';
 
 export interface CategoryTree extends Category {
   children: CategoryTree[];
