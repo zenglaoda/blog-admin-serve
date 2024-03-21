@@ -18,7 +18,9 @@
 
 1. 文章可以挂载在任何一个分类下面
 2. 存在文章的分类及其父分类不能被直接删除
-3. 文章的状态可以由 draft -> final -> published -> retracted, retracted 状态下进行了改动就变为 draft 状态
+3. 新增的文章状态只能是 draft, final
+4. 修改文章时 （draft, final） => （draft, final）， retracted => （draft, final）, published 不能进行修改
+5. 发版与撤稿操作均在文章列表页操作
 
 ## 枚举值
 
@@ -58,6 +60,13 @@
 | ------- | ------- | ------------ | ------------ | -------- | -------- | ------------ | -------- | ----------------- | ----------------- |
 | INT     | INT     | VARCHAR(800) | VARCHAR(800) | TEXT     | CHAR     | VARCHAR(400) | CHAR     | CURRENT_TIMESTAMP | CURRENT_TIMESTAMP |
 | 文章 id | 分类 id | 文章名       | 文章关键词   | 文章内容 | 文章格式     | 文件名       | 文章状态 | 创建时间          | 修改时间          |
+
+- article_trash
+
+| id      | c_id    | title        | keyword      | content  | format   | file_name    | status   | c_time            | m_time            |
+| ------- | ------- | ------------ | ------------ | -------- | -------- | ------------ | -------- | ----------------- | ----------------- |
+| INT     | INT     | VARCHAR(800) | VARCHAR(800) | TEXT     | CHAR     | VARCHAR(400) | CHAR     | CURRENT_TIMESTAMP | CURRENT_TIMESTAMP |
+| 记录 Id | 分类 id | 文章名       | 文章关键词   | 文章内容 | 文章格式     | 文件名       | 文章状态 | 创建时间          | 修改时间          |
 
 - series
 

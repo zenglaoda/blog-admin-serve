@@ -1,7 +1,7 @@
 import { ResultSetHeader, escape } from 'mysql2';
 import { Injectable } from '@nestjs/common';
 import { MysqlService } from '@/provider/mysql.service';
-import { CreateDto, MoveDto, UpdateCto } from './category.dto';
+import { CreateDto, MoveDto, UpdateDto } from './category.dto';
 import { syncCatStore } from './category.store';
 
 import { RowDataPacket, Connection } from 'mysql2/promise';
@@ -123,7 +123,7 @@ export class CategoryService {
     }
   }
 
-  async update(updateDto: UpdateCto) {
+  async update(updateDto: UpdateDto) {
     const connection = await this.mysqlService.getConnection();
     try {
       await connection.query<ResultSetHeader>(

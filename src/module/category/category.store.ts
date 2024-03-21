@@ -20,23 +20,6 @@ export class CategoryStore extends Observer<string> {
   }
 
   /**
-   * @override
-   * @param key
-   * @param args
-   */
-  async notify(key: string, ...args: any[]): Promise<any> {
-    const subscribers = this.subjects.get(key) || [];
-    for (let i = 0; i < subscribers.length; i++) {
-      const callback = subscribers[i];
-      await callback(...args);
-    }
-  }
-
-  markStale() {
-    this.isStale = true;
-  }
-
-  /**
    * 拉取最新分类数据
    */
   private async pullList() {
@@ -99,8 +82,16 @@ export class CategoryStore extends Observer<string> {
     return rootCategories;
   }
 
+  markStale() {
+    this.isStale = true;
+  }
+
   isRootCategory(category: Category) {
     return category.pid === 0;
+  }
+
+  has(id: number) {
+    return this.categoryMap.has(id);
   }
 
   /**
@@ -140,6 +131,19 @@ export class CategoryStore extends Observer<string> {
   async getCategoryTree() {
     await this.pullList();
     return this.categoryTree;
+  }
+
+  /**
+   * @override
+   * @param key
+   * @param args
+   */
+  async notify(key: string, ...args: any[]): Promise<any> {
+    const subscribers = this.subjects.get(key) || [];
+    for (let i = 0; i < subscribers.length; i++) {
+      const callback = subscribers[i];
+      await callback(...args);
+    }
   }
 }
 

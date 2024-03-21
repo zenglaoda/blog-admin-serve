@@ -11,7 +11,7 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { CategoryService } from './category.service';
-import { CreateDto, UpdateCto } from './category.dto';
+import { CreateDto, UpdateDto } from './category.dto';
 
 @Controller('/category')
 export class CategoryController {
@@ -30,8 +30,8 @@ export class CategoryController {
 
   @Put()
   @UsePipes(new ValidationPipe({ transform: true }))
-  update(@Body() updateCto: UpdateCto) {
-    return this.categoryService.update(updateCto);
+  update(@Body() updateDto: UpdateDto) {
+    return this.categoryService.update(updateDto);
   }
 
   @Get(':id')

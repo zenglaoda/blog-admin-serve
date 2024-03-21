@@ -20,7 +20,7 @@ export class CreateDto {
   @Length(0, 100)
   file_name: string;
 
-  @IsEnum(ARTICLE_STATUS)
+  @IsEnum({ DRAFT: ARTICLE_STATUS.DRAFT, FINAL: ARTICLE_STATUS.FINAL })
   status: string;
 }
 
@@ -46,6 +46,6 @@ export class UpdateDto {
   @Length(0, 100)
   file_name: string;
 
-  @IsEnum(ARTICLE_STATUS)
+  @IsEnum({ DRAFT: ARTICLE_STATUS.DRAFT, FINAL: ARTICLE_STATUS.FINAL })
   status: string;
 }

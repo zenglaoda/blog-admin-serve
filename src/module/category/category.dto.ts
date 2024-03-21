@@ -16,7 +16,7 @@ export class CreateDto {
   description: string;
 }
 
-export class UpdateCto {
+export class UpdateDto {
   @Min(1)
   id: number;
 
