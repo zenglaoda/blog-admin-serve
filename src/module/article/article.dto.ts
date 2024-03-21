@@ -1,5 +1,6 @@
 import { IsByteLength, IsEnum, Length, Min } from 'class-validator';
 import { ARTICLE_FORMAT, ARTICLE_STATUS } from './article.enum';
+import { PagingDto } from '@/common/paging.dto';
 
 export class CreateDto {
   @Min(1)
@@ -48,4 +49,31 @@ export class UpdateDto {
 
   @IsEnum({ DRAFT: ARTICLE_STATUS.DRAFT, FINAL: ARTICLE_STATUS.FINAL })
   status: string;
+}
+
+export class ListPagingDto extends PagingDto {}
+
+export class Article {
+  id: number;
+  c_id: number;
+  title: string;
+  keyword: string;
+  content: string;
+  format: string;
+  file_name: string;
+  status: string;
+  ctime: string;
+  mtime: string;
+}
+
+export class ArticleLight {
+  id: number;
+  c_id: number;
+  title: string;
+  keyword: string;
+  format: string;
+  file_name: string;
+  status: string;
+  ctime: string;
+  mtime: string;
 }

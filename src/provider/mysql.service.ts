@@ -74,7 +74,7 @@ export class MysqlService {
 
   async createArticleTrashTable(connection: Connection) {
     return connection.query(`
-      CREATE TABLE IF NOT EXISTS article (
+      CREATE TABLE IF NOT EXISTS article_trash (
         id INT AUTO_INCREMENT PRIMARY KEY COMMENT 'Log Id',
         c_id INT NOT NULL COMMENT 'Category id',
         title VARCHAR(800) NOT NULL COMMENT 'Article title',
@@ -84,7 +84,7 @@ export class MysqlService {
         file_name VARCHAR(400) DEFAULT '' COMMENT 'Used as export file name',
         status CHAR(1) DEFAULT '1' COMMENT 'Article status',
         ctime TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        mtime TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        mtime TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
   }

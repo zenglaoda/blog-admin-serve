@@ -9,3 +9,13 @@ export function discardUndef(obj: object) {
     return data;
   }, {});
 }
+
+/**
+ * 获取分页查询索引
+ * @param dto
+ * @returns
+ */
+export function paging(dto: { page: number; pageSize: number }) {
+  const { page, pageSize } = dto;
+  return [(page - 1) * pageSize, page * pageSize];
+}

@@ -2,12 +2,17 @@ import { ResultSetHeader } from 'mysql2';
 import { Injectable } from '@nestjs/common';
 import { MysqlService } from '@/provider/mysql.service';
 import { syncCatStore } from '@/module/category';
-import { discardUndef } from '@/utils/share';
+import { discardUndef, paging } from '@/utils/share';
 
-import { CreateDto, UpdateDto } from './article.dto';
+import {
+  CreateDto,
+  ListPagingDto,
+  UpdateDto,
+  Article,
+  ArticleLight,
+} from './article.dto';
 import { CategoryStore } from '@/module/category/category.store';
-import { RowDataPacket } from 'mysql2/promise';
-import { Article } from './article.types';
+import { RowDataPacket, escape } from 'mysql2/promise';
 
 @Injectable()
 export class ArticleService {
@@ -109,5 +114,24 @@ export class ArticleService {
     } finally {
       this.mysqlService.release(connection);
     }
+  }
+
+  async getList(dto: ListPagingDto) {
+    const connection = await this.mysqlService.getConnection();
+    const [fromIndex, toIndex] = paging(dto);
+    let results: unknown;
+    try {
+      [results] = await connection.query(`
+      SELECT 
+        id, c_id, title, keyword, format, file_name, status, ctime, mtime
+      FROM 
+        article
+      LIMIT
+        ${fromIndex}, ${toIndex}
+      `);
+    } finally {
+      this.mysqlService.release(connection);
+    }
+    return results as ArticleLight[];
   }
 }
