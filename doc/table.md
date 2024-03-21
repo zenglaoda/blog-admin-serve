@@ -19,8 +19,13 @@
 1. 文章可以挂载在任何一个分类下面
 2. 存在文章的分类及其父分类不能被直接删除
 3. 新增的文章状态只能是 draft, final
-4. 修改文章时 （draft, final） => （draft, final）， retracted => （draft, final）, published 不能进行修改
-5. 发版与撤稿操作均在文章列表页操作
+4. 修改文章时 （draft, final） => （draft, final）， retracted => （draft, final）
+5. 文章列表页 支持 published， retracted
+- draft -> final -> published -> retracted
+- final -> draft
+- final -> published
+- retracted -> （draft, final, published）
+- published -> retracted
 
 ## 枚举值
 

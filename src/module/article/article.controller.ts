@@ -10,7 +10,12 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { ArticleService } from './article.service';
-import { CreateDto, ListPagingDto, UpdateDto } from './article.dto';
+import {
+  CreateDto,
+  ListPagingDto,
+  UpdateDto,
+  UpdateStatusDto,
+} from './article.dto';
 
 @Controller('/article')
 export class ArticleController {
@@ -39,5 +44,10 @@ export class ArticleController {
   @Get()
   async getList(@Query() dto: ListPagingDto) {
     return this.articleService.getList(dto);
+  }
+
+  @Post()
+  async updateStatus(@Body() dto: UpdateStatusDto) {
+    this.articleService.updateStatus(dto);
   }
 }

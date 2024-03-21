@@ -53,6 +53,14 @@ export class UpdateDto {
 
 export class ListPagingDto extends PagingDto {}
 
+export class UpdateStatusDto {
+  @Min(1)
+  id: number;
+
+  @IsEnum(ARTICLE_STATUS)
+  status: number;
+}
+
 export class Article {
   id: number;
   c_id: number;

@@ -9,10 +9,12 @@ import {
   UpdateDto,
   Article,
   ArticleLight,
+  UpdateStatusDto,
 } from './article.dto';
 import { CategoryStore } from '@/module/category/category.store';
 import { MysqlService } from '@/provider/mysql.service';
 import { RowDataPacket } from 'mysql2/promise';
+import { ARTICLE_STATUS } from './article.enum';
 
 @Injectable()
 export class ArticleService {
@@ -137,5 +139,44 @@ export class ArticleService {
       this.mysqlService.release(connection);
     }
     return results as ArticleLight[];
+  }
+
+  private isRightMutateStatus(status: number, mutationStatus: number) {
+    if (status === ARTICLE_STATUS.DRAFT) {
+      return ARTICLE_STATUS.FINAL === mutationStatus;
+    }
+    if (status === ARTICLE_STATUS.FINAL) {
+      return [ARTICLE_STATUS.DRAFT, ARTICLE_STATUS.PUBLISHED].includes(
+        mutationStatus,
+      );
+    }
+    if (status === ARTICLE_STATUS.PUBLISHED) {
+      return ARTICLE_STATUS.RETRACTED === mutationStatus;
+    }
+    if (status === ARTICLE_STATUS.RETRACTED) {
+      return [
+        ARTICLE_STATUS.DRAFT,
+        ARTICLE_STATUS.FINAL,
+        ARTICLE_STATUS.PUBLISHED,
+      ].includes(mutationStatus);
+    }
+    return false;
+  }
+
+  async updateStatus(dto: UpdateStatusDto) {
+    const connection = await this.mysqlService.getConnection();
+    try {
+      const article = await this.retrieve(dto.id);
+      if (!this.isRightMutateStatus(article.status, dto.status)) {
+        throw new Error('状态流转错误');
+      }
+
+      await connection.query(`UPDATE article SET status = ? WHERE id = ?`, [
+        dto.status,
+        dto.id,
+      ]);
+    } finally {
+      this.mysqlService.release(connection);
+    }
   }
 }
