@@ -8,8 +8,6 @@ import {
   Query,
   Body,
   ParseIntPipe,
-  UsePipes,
-  ValidationPipe,
 } from '@nestjs/common';
 import { ArticleService } from './article.service';
 import { CreateDto, ListPagingDto, UpdateDto } from './article.dto';
@@ -29,20 +27,17 @@ export class ArticleController {
   }
 
   @Post()
-  @UsePipes(new ValidationPipe({ transform: true }))
   async create(@Body() dto: CreateDto) {
     return this.articleService.create(dto);
   }
 
   @Put()
-  @UsePipes(new ValidationPipe({ transform: true }))
-  update(@Body() dto: UpdateDto) {
+  async update(@Body() dto: UpdateDto) {
     return this.articleService.update(dto);
   }
 
   @Get()
-  @UsePipes(new ValidationPipe({ transform: true }))
-  getList(@Query() dto: ListPagingDto) {
+  async getList(@Query() dto: ListPagingDto) {
     return this.articleService.getList(dto);
   }
 }

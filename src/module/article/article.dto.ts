@@ -4,7 +4,7 @@ import { PagingDto } from '@/common/paging.dto';
 
 export class CreateDto {
   @Min(1)
-  cid: number;
+  c_id: number;
 
   @Length(1, 200)
   title: string;
@@ -16,13 +16,13 @@ export class CreateDto {
   content: string;
 
   @IsEnum(ARTICLE_FORMAT)
-  format: string;
+  format: number;
 
   @Length(0, 100)
   file_name: string;
 
   @IsEnum({ DRAFT: ARTICLE_STATUS.DRAFT, FINAL: ARTICLE_STATUS.FINAL })
-  status: string;
+  status: number;
 }
 
 export class UpdateDto {
@@ -30,7 +30,7 @@ export class UpdateDto {
   id: number;
 
   @Min(1)
-  cid: number;
+  c_id: number;
 
   @Length(1, 200)
   title: string;
@@ -42,13 +42,13 @@ export class UpdateDto {
   content: string;
 
   @IsEnum(ARTICLE_FORMAT)
-  format: string;
+  format: number;
 
   @Length(0, 100)
   file_name: string;
 
   @IsEnum({ DRAFT: ARTICLE_STATUS.DRAFT, FINAL: ARTICLE_STATUS.FINAL })
-  status: string;
+  status: number;
 }
 
 export class ListPagingDto extends PagingDto {}
@@ -59,9 +59,9 @@ export class Article {
   title: string;
   keyword: string;
   content: string;
-  format: string;
+  format: number;
   file_name: string;
-  status: string;
+  status: number;
   ctime: string;
   mtime: string;
 }

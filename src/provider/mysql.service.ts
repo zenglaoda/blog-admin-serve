@@ -16,6 +16,7 @@ export class MysqlService {
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,
+      // debug: ['ComQueryPacket', 'RowDataPacket'],
     });
     this.createTables();
   }

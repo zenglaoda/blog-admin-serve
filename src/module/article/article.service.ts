@@ -1,8 +1,7 @@
 import { ResultSetHeader } from 'mysql2';
 import { Injectable } from '@nestjs/common';
-import { MysqlService } from '@/provider/mysql.service';
 import { syncCatStore } from '@/module/category';
-import { discardUndef, paging } from '@/utils/share';
+import { discardUndef, paging, pickKeys } from '@/utils/share';
 
 import {
   CreateDto,
@@ -12,7 +11,8 @@ import {
   ArticleLight,
 } from './article.dto';
 import { CategoryStore } from '@/module/category/category.store';
-import { RowDataPacket, escape } from 'mysql2/promise';
+import { MysqlService } from '@/provider/mysql.service';
+import { RowDataPacket } from 'mysql2/promise';
 
 @Injectable()
 export class ArticleService {
@@ -23,8 +23,8 @@ export class ArticleService {
 
   @syncCatStore()
   async create(dto: CreateDto) {
-    if (!this.categoryStore.has(dto.cid)) {
-      throw new Error('当前分类不存在!');
+    if (!this.categoryStore.has(dto.c_id)) {
+      throw new Error('不存在的分类!');
     }
     const connection = await this.mysqlService.getConnection();
     let insertId: number;
@@ -32,7 +32,7 @@ export class ArticleService {
       const [results] = await connection.query<ResultSetHeader>(
         `INSERT INTO article (c_id, title, keyword, content, format, file_name, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
-          dto.cid,
+          dto.c_id,
           dto.title,
           dto.keyword,
           dto.content,
@@ -48,14 +48,15 @@ export class ArticleService {
     return insertId;
   }
 
+  @syncCatStore()
   async update(dto: UpdateDto) {
-    if (!this.categoryStore.has(dto.cid)) {
+    if (!this.categoryStore.has(dto.c_id)) {
       throw new Error('当前分类不存在!');
     }
     const connection = await this.mysqlService.getConnection();
     try {
       const fields = discardUndef({
-        c_id: dto.cid,
+        c_id: dto.c_id,
         title: dto.title,
         keyword: dto.keyword,
         content: dto.content,
@@ -78,7 +79,9 @@ export class ArticleService {
     try {
       [results] = await connection.query<RowDataPacket[]>(
         `SELECT
-          id, c_id, title, keyword, content, format, file_name, status, ctime, mtime
+          id, c_id, title, keyword, content, format, 
+          file_name, status, 
+          UNIX_TIMESTAMP(ctime) as ctime, UNIX_TIMESTAMP(mtime) as mtime
         FROM
           article
         WHERE
@@ -98,19 +101,19 @@ export class ArticleService {
     try {
       const article = await this.retrieve(id);
       await connection.query(`DELETE FROM article WHERE id = ?;`, [id]);
-      const fields = [
-        'c_id',
-        'title',
-        'keyword',
-        'content',
-        'format',
-        'file_name',
-        'status',
-      ];
-      await connection.query(`INSERT INTO article_trash ? VALUES ?;`, [
-        fields,
-        fields.map((field) => article[field]),
-      ]);
+      const fields = pickKeys(
+        [
+          'c_id',
+          'title',
+          'keyword',
+          'content',
+          'format',
+          'file_name',
+          'status',
+        ],
+        article,
+      );
+      await connection.query(`INSERT INTO article_trash SET ?;`, fields);
     } finally {
       this.mysqlService.release(connection);
     }
@@ -123,7 +126,8 @@ export class ArticleService {
     try {
       [results] = await connection.query(`
       SELECT 
-        id, c_id, title, keyword, format, file_name, status, ctime, mtime
+        id, c_id, title, keyword, format, file_name, status, 
+        UNIX_TIMESTAMP(ctime) as ctime, UNIX_TIMESTAMP(mtime) as mtime
       FROM 
         article
       LIMIT
